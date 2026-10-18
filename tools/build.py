@@ -12,6 +12,7 @@ import json
 import os
 import re
 import shutil
+import urllib.parse
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -180,7 +181,13 @@ def missing_value(label="будет указано по карточке пре�
 
 def company_field(key, label=None):
     v = company.get(key, "")
-    return E(v) if v else missing_value(label or "будет указано по карточке предприятия")
+    if not v:
+        return missing_value(label or "будет указано по карточке предприятия")
+    if key == "email":
+        return f'<a href="mailto:{E(v)}">{E(v)}</a>'
+    if key == "phone":
+        return f'<a href="tel:{E(re.sub(r"[^0-9+]", "", v))}">{E(v)}</a>'
+    return E(v)
 
 
 ICONS = {
@@ -254,7 +261,7 @@ def footer():
     </div>
   </div>
   <div class="wrap footer-bottom">
-    <span>© {datetime.date.today().year} {E(company.get("name_short", "Witte-rus"))}. Сведения о товарах приведены по каталогам изготовителей и не являются публичной офертой.</span>
+    <span>© {datetime.date.today().year} {E(company.get("name_short", "Witte-rus"))}{(" — " + E(company["legal_name_short"]) + ", ИНН " + E(company.get("inn", ""))) if company.get("legal_name_short") else ""}. Сведения о товарах приведены по каталогам изготовителей и не являются публичной офертой.</span>
     <a href="/privacy/">Обработка персональных данных</a>
   </div>
 </footer>'''
@@ -738,16 +745,29 @@ def build_home():
     write_page("/", "Witte-rus — оборудование для свиноводства, птицеводства и КРС",
                "Оборудование для животноводства: кормление, поение, вентиляция, обогрев, щелевые полы, станки и ограждения для свиноводства, птицеводства и КРС. Каталог с характеристиками и документацией.",
                body, active="home", og_image="case-4",
-               ld={"@context": "https://schema.org", "@type": "Organization", "name": company.get("name_short"), "url": company.get("site_url")})
+               ld={"@context": "https://schema.org", "@type": "Organization", "name": company.get("name_short"),
+                   "legalName": company.get("legal_name"), "taxID": company.get("inn"), "email": company.get("email"),
+                   "address": {"@type": "PostalAddress", "streetAddress": company.get("legal_address"), "addressLocality": company.get("city"), "addressCountry": "RU"},
+                   "url": company.get("site_url")})
+
+
+def map_block():
+    addr = company.get("office_address", "")
+    if not addr:
+        return '<div class="map-ph">Карта проезда будет добавлена после уточнения адреса</div>'
+    q = urllib.parse.quote(addr)
+    return (f'<div class="map-ph map-link"><div><b>{E(addr)}</b><br>'
+            f'<a class="btn btn-ghost btn-sm" href="https://yandex.ru/maps/?text={q}" target="_blank" rel="noopener">Открыть на Яндекс Картах</a></div></div>')
 
 
 def build_static_pages():
     counts = "".join(f'<li><a href="{url_of(d["slug"])}">{E(d.get("full", d["name"]))}</a> — {len(cat_products(d["slug"]))} {plural(len(cat_products(d["slug"])), "позиция", "позиции", "позиций")}</li>' for d in DIRS)
-    rows = [("Полное наименование", "legal_name"), ("ИНН", "inn"), ("КПП", "kpp"), ("ОГРН", "ogrn"),
-            ("Юридический адрес", "legal_address"), ("Фактический адрес", "office_address"), ("Телефон", "phone"),
-            ("E-mail", "email"), ("Режим работы", "work_hours"), ("Банковские реквизиты", "bank_details")]
+    rows = [("Полное наименование", "legal_name"), ("Сокращённое наименование", "legal_name_short"), ("ИНН", "inn"), ("КПП", "kpp"), ("ОГРН", "ogrn"),
+            ("Юридический адрес", "legal_address"), ("Почтовый адрес", "office_address"), ("Руководитель", "director"),
+            ("E-mail", "email"), ("Телефон", "phone"), ("Банк", "bank_name"), ("Расчётный счёт", "bank_account"),
+            ("Корреспондентский счёт", "bank_corr_account"), ("БИК", "bank_bik")]
     req = "".join(f'<tr><th scope="row">{k}</th><td>{company_field(v)}</td></tr>' for k, v in rows)
-    body = f'''<section class="page-head wrap"><h1>О компании</h1><p class="lead">Witte-rus — поставщик оборудования для животноводства. Каталог компании охватывает свиноводство, птицеводство и КРС.</p></section>
+    body = f'''<section class="page-head wrap"><h1>О компании</h1><p class="lead">Witte-rus ({E(company.get("legal_name_short", ""))}, {E(company.get("city", ""))}) — поставщик оборудования для животноводства. Каталог компании охватывает свиноводство, птицеводство и КРС.</p></section>
 <div class="wrap two-col section-tight">
   <div>
     <h2>Направления каталога</h2>
@@ -759,7 +779,7 @@ def build_static_pages():
   <div>
     <h2>Реквизиты</h2>
     <div class="tbl-wrap"><table class="tbl tbl-kv"><tbody>{req}</tbody></table></div>
-    <p class="note">Реквизиты публикуются только по официальной карточке предприятия.</p>
+    <p class="note">Данные приведены по карточке предприятия.</p>
   </div>
 </div>
 <section class="section section-alt"><div class="wrap"><div class="sec-head"><h2>Оборудование на объектах</h2><p>Фотографии из каталога изготовителя полимерных изделий.</p></div><div class="photos">{"".join(f'<button class="ph" data-lb-single="{img_url(n)}">{img_tag(n, "Объект с оборудованием")}</button>' for n in ["case-1", "case-3", "case-5", "case-6", "case-7", "case-8"])}</div></div></section>'''
@@ -782,18 +802,19 @@ def build_static_pages():
     write_page("/documentation/", "Документация и каталоги", "Технические каталоги оборудования для животноводства: кормление, поение, вентиляция, обогрев, полы, станки.",
                body, crumbs=[("Главная", "/"), ("Документация", "/documentation/")], active="docs")
 
-    body = f'''<section class="page-head wrap"><h1>Контакты</h1><p class="lead">Контактные данные будут опубликованы по официальной карточке предприятия.</p></section>
+    body = f'''<section class="page-head wrap"><h1>Контакты</h1><p class="lead">{E(company.get("legal_name_short", ""))}, {E(company.get("city", ""))}. Напишите нам на e-mail или оставьте заявку через форму.</p></section>
 <div class="wrap two-col two-col-form section-tight">
   <div>
     <div class="tbl-wrap"><table class="tbl tbl-kv"><tbody>
       <tr><th scope="row">Телефон</th><td>{company_field("phone")}</td></tr>
       <tr><th scope="row">E-mail</th><td>{company_field("email")}</td></tr>
-      <tr><th scope="row">Адрес офиса</th><td>{company_field("office_address")}</td></tr>
+      <tr><th scope="row">Адрес</th><td>{company_field("office_address")}</td></tr>
       <tr><th scope="row">Режим работы</th><td>{company_field("work_hours")}</td></tr>
       <tr><th scope="row">Юридическое лицо</th><td>{company_field("legal_name")}</td></tr>
-      <tr><th scope="row">ИНН / ОГРН</th><td>{company_field("inn")} / {company_field("ogrn")}</td></tr>
+      <tr><th scope="row">ИНН / КПП</th><td>{company_field("inn")} / {company_field("kpp")}</td></tr>
+      <tr><th scope="row">ОГРН</th><td>{company_field("ogrn")}</td></tr>
     </tbody></table></div>
-    <div class="map-ph">Карта проезда будет добавлена после уточнения адреса</div>
+    {map_block()}
   </div>
   <div><h2>Написать нам</h2>{request_form()}</div>
 </div>'''
@@ -805,9 +826,16 @@ def build_static_pages():
     write_page("/request/", "Запрос коммерческого предложения", "Запросите коммерческое предложение на оборудование для свиноводства, птицеводства и КРС.",
                body, crumbs=[("Главная", "/"), ("Запрос КП", "/request/")])
 
-    body = '''<section class="page-head wrap"><h1>Обработка персональных данных</h1>
-<p class="lead">Политика обработки персональных данных будет опубликована после получения официальных реквизитов оператора.</p>
-<p>Данные из форм на сайте используются только для ответа на запрос и подготовки коммерческого предложения.</p></section>'''
+    body = f'''<section class="page-head wrap"><h1>Обработка персональных данных</h1>
+<p class="lead">Данные из форм на сайте используются только для ответа на запрос и подготовки коммерческого предложения.</p>
+<h2>Оператор персональных данных</h2>
+<div class="tbl-wrap"><table class="tbl tbl-kv"><tbody>
+<tr><th scope="row">Наименование</th><td>{company_field("legal_name")}</td></tr>
+<tr><th scope="row">ИНН / ОГРН</th><td>{company_field("inn")} / {company_field("ogrn")}</td></tr>
+<tr><th scope="row">Адрес</th><td>{company_field("legal_address")}</td></tr>
+<tr><th scope="row">E-mail для обращений</th><td>{company_field("email")}</td></tr>
+</tbody></table></div>
+<p class="note">Полный текст политики обработки персональных данных будет опубликован отдельно.</p></section>'''
     write_page("/privacy/", "Обработка персональных данных", "Сведения об обработке персональных данных на сайте Witte-rus.", body,
                crumbs=[("Главная", "/"), ("Обработка персональных данных", "/privacy/")])
 
