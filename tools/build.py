@@ -207,7 +207,7 @@ def mega_menu():
         items = []
         for c in d["categories"]:
             subs = "".join(f'<li><a href="{url_of(d["slug"] + "/" + c["slug"] + "/" + s["slug"])}">{E(s["name"])}</a></li>'
-                           for s in c["subcategories"])
+                           for s in menu_subs(d["slug"], c))
             items.append(f'<li class="mm-cat"><a href="{url_of(d["slug"] + "/" + c["slug"])}">{E(c["name"])}</a><ul>{subs}</ul></li>')
         cols.append(f'<div class="mm-col"><a class="mm-dir" href="{url_of(d["slug"])}">{E(d["name"])}'
                     f'<span>{E(d.get("full", ""))}</span></a><ul>{"".join(items)}</ul></div>')
@@ -220,7 +220,7 @@ def mobile_nav():
         cats = []
         for c in d["categories"]:
             subs = "".join(f'<li><a href="{url_of(d["slug"] + "/" + c["slug"] + "/" + s["slug"])}">{E(s["name"])}</a></li>'
-                           for s in c["subcategories"])
+                           for s in menu_subs(d["slug"], c))
             cats.append(f'<details><summary>{E(c["name"])}</summary><ul><li><a href="{url_of(d["slug"] + "/" + c["slug"])}">Все: {E(c["name"].lower())}</a></li>{subs}</ul></details>')
         dirs.append(f'<details class="mn-dir"><summary>{E(d["name"])}</summary><div><a class="mn-all" href="{url_of(d["slug"])}">Всё направление</a>{"".join(cats)}</div></details>')
     return f'''<div class="mnav" id="mnav" hidden>
@@ -254,7 +254,8 @@ def footer():
     <div><h3>Компания</h3><ul><li><a href="/about/">О компании</a></li><li><a href="/documentation/">Документация</a></li><li><a href="/contacts/">Контакты</a></li><li><a href="/request/">Запрос КП</a></li></ul></div>
     <div><h3>Контакты</h3>
       <ul class="contact-list">
-        <li>Телефон: {company_field("phone")}</li>
+        <li>Телефон: {company_field("phone")}{(" (" + E(company["contact_person"]) + ")") if company.get("contact_person") else ""}</li>
+        <li>Часы работы: {company_field("work_hours")}</li>
         <li>E-mail: {company_field("email")}</li>
         <li>Адрес: {company_field("office_address")}</li>
       </ul>
@@ -446,8 +447,19 @@ def low(name):
     return name if name.isupper() else name.lower()
 
 
+def is_request_only(dslug, c):
+    """Раздел «подбор по запросу», пока в нём нет ни одного изделия."""
+    return bool(c.get("on_request")) and not cat_products(dslug + "/" + c["slug"])
+
+
+def menu_subs(dslug, c):
+    if not c.get("on_request"):
+        return c["subcategories"]
+    return [x for x in c["subcategories"] if sub_products(dslug + "/" + c["slug"] + "/" + x["slug"])]
+
+
 def count_label(path, cat=None):
-    if cat is not None and cat.get("on_request"):
+    if cat is not None and cat.get("on_request") and not cat_products(path):
         return "подбор по запросу"
     n = len(cat_products(path))
     return f"{n} {plural(n, 'позиция', 'позиции', 'позиций')}"
@@ -494,7 +506,7 @@ def build_catalog():
     blocks = []
     for d in DIRS:
         cats = "".join(
-            f'<li><a href="{url_of(d["slug"] + "/" + c["slug"])}">{E(c["name"])}</a><span>{"по запросу" if c.get("on_request") else len(cat_products(d["slug"] + "/" + c["slug"]))}</span></li>'
+            f'<li><a href="{url_of(d["slug"] + "/" + c["slug"])}">{E(c["name"])}</a><span>{"по запросу" if is_request_only(d["slug"], c) else len(cat_products(d["slug"] + "/" + c["slug"]))}</span></li>'
             for c in d["categories"])
         blocks.append(f'''<section class="dir-block">
   <a class="dir-block-img" href="{url_of(d["slug"])}">{img_tag(d["image"], d["name"])}</a>
@@ -512,7 +524,7 @@ def build_catalog():
         tiles = []
         for c in d["categories"]:
             cp = f"{dpath}/{c['slug']}"
-            subs = "".join(f'<li><a href="{url_of(cp + "/" + s["slug"])}">{E(s["name"])}</a></li>' for s in c["subcategories"])
+            subs = "".join(f'<li><a href="{url_of(cp + "/" + s["slug"])}">{E(s["name"])}</a></li>' for s in menu_subs(d["slug"], c))
             tiles.append(f'''<article class="cat-card">
   <a class="cat-card-img" href="{url_of(cp)}">{img_tag(c["image"], c["name"])}</a>
   <div class="cat-card-body"><h2><a href="{url_of(cp)}">{E(c["name"])}</a></h2><p>{E(c["description"])}</p><ul>{subs}</ul>
@@ -530,7 +542,7 @@ def build_catalog():
             cp = f"{dpath}/{c['slug']}"
             subs = "".join(tile(url_of(cp + "/" + s["slug"]), s["name"], s["description"], s["image"],
                                 len(sub_products(cp + "/" + s["slug"])), "tile tile-sm") for s in c["subcategories"])
-            if c.get("on_request"):
+            if is_request_only(d["slug"], c):
                 points = "".join(f"<li>{E(x)}</li>" for x in c.get("request_points", []))
                 others = [x for x in DIRS if x is not d and any(cc["slug"] == c["slug"] for cc in x["categories"])]
                 body = f'''<section class="page-head wrap"><span class="eyebrow">{E(d["name"])}</span><h1>{E(c["name"])}</h1><p class="lead">{E(c["description"])}</p></section>
@@ -667,7 +679,7 @@ def build_products():
   {f'<section class="psec" id="kit"><h2>Комплектация и состав</h2><ul class="ticks">{kit}</ul></section>' if kit else ''}
   {f'<section class="psec" id="docs"><h2>Документация</h2><ul class="doc-list">{docs}</ul><p class="src">Источник данных: {E(source)}.</p></section>' if docs else ''}
   {f'<section class="psec" id="related"><h2>Сопутствующие изделия</h2><div class="pgrid">{related}</div></section>' if related else ''}
-  <section class="psec cta-band"><div><h2>Нужен расчёт под ваш объект?</h2><p>Укажите количество голов, размеры помещений и состав оборудования — подготовим коммерческое предложение.</p></div><a class="btn btn-accent" href="/request/?product={pid}">Запросить коммерческое предложение</a></section>
+  <section class="psec cta-band"><div><h2>Нужен расчёт под ваш объект?</h2><p>Укажите количество голов, размеры помещений и состав оборудования — подготовим коммерческое предложение. {E(company.get("installation", ""))}</p></div><a class="btn btn-accent" href="/request/?product={pid}">Запросить коммерческое предложение</a></section>
 </div>'''
         base = company.get("site_url", "").rstrip("/")
         ld = {"@context": "https://schema.org", "@type": "Product", "name": p["name"], "model": p.get("model", ""),
@@ -744,12 +756,12 @@ def build_home():
 <section class="section wrap"><div class="sec-head"><h2>Оборудование на объектах</h2><p>Фотографии объектов и производственных площадок из каталога изготовителя полимерных изделий.</p></div><div class="photos">{cases}</div><div class="photos photos-4">{plants}</div></section>
 <section class="section section-alt"><div class="wrap two-col"><div><h2>Документация</h2><p>Каталоги изготовителей с таблицами характеристик. Ссылки на нужные страницы есть в каждой карточке изделия.</p><a class="btn btn-primary" href="/documentation/">Все документы</a></div><ul class="doc-list">{docs}</ul></div></section>
 <section class="section wrap" id="request"><div class="two-col two-col-form"><div><h2>Запрос коммерческого предложения</h2><p>Опишите задачу: направление, поголовье, размеры помещений, перечень оборудования. Мы подготовим подбор и расчёт.</p>
-<ul class="contact-list"><li>Телефон: {company_field("phone")}</li><li>E-mail: {company_field("email")}</li><li>Адрес: {company_field("office_address")}</li></ul></div>{request_form()}</div></section>'''
+<ul class="contact-list"><li>Телефон: {company_field("phone")}{(" (" + E(company["contact_person"]) + ")") if company.get("contact_person") else ""}</li><li>Часы работы: {company_field("work_hours")}</li><li>E-mail: {company_field("email")}</li><li>Адрес: {company_field("office_address")}</li></ul></div>{request_form()}</div></section>'''
     write_page("/", "Witte-rus — оборудование для свиноводства, птицеводства и КРС",
                "Оборудование для животноводства: кормление, поение, вентиляция, обогрев, щелевые полы, станки и ограждения для свиноводства, птицеводства и КРС. Каталог с характеристиками и документацией.",
                body, active="home", og_image="case-4",
                ld={"@context": "https://schema.org", "@type": "Organization", "name": company.get("name_short"),
-                   "legalName": company.get("legal_name"), "taxID": company.get("inn"), "email": company.get("email"),
+                   "legalName": company.get("legal_name"), "taxID": company.get("inn"), "email": company.get("email"), "telephone": company.get("phone"),
                    "address": {"@type": "PostalAddress", "streetAddress": company.get("legal_address"), "addressLocality": company.get("city"), "addressCountry": "RU"},
                    "url": company.get("site_url")})
 
@@ -775,6 +787,8 @@ def build_static_pages():
   <div>
     <h2>Направления каталога</h2>
     <ul class="ticks">{counts}</ul>
+    <h2>Монтаж</h2>
+    <p>{E(company.get("installation", ""))}</p>
     <h2>Что входит в ассортимент</h2>
     <p>Системы хранения и раздачи корма, самокормушки и дозаторы, ниппельное и чашечное поение, вытяжная и приточная вентиляция, испарительное охлаждение, контроллеры микроклимата, теплогенераторы и калориферы, чугунные и пластиковые щелевые полы, стеклопластиковые опоры, станки для свиноматок, ограждения из ПВХ- и PP-панелей.</p>
     <div class="placeholder-box"><h3>История и преимущества компании</h3><p>Раздел будет заполнен по официальным материалам предприятия: год основания, география поставок, реализованные проекты, сервис и гарантийные обязательства.</p></div>
@@ -809,7 +823,7 @@ def build_static_pages():
 <div class="wrap two-col two-col-form section-tight">
   <div>
     <div class="tbl-wrap"><table class="tbl tbl-kv"><tbody>
-      <tr><th scope="row">Телефон</th><td>{company_field("phone")}</td></tr>
+      <tr><th scope="row">Телефон</th><td>{company_field("phone")}{(", " + E(company["contact_person"])) if company.get("contact_person") else ""}</td></tr>
       <tr><th scope="row">E-mail</th><td>{company_field("email")}</td></tr>
       <tr><th scope="row">Адрес</th><td>{company_field("office_address")}</td></tr>
       <tr><th scope="row">Режим работы</th><td>{company_field("work_hours")}</td></tr>
@@ -825,7 +839,7 @@ def build_static_pages():
                crumbs=[("Главная", "/"), ("Контакты", "/contacts/")], active="contacts")
 
     body = f'''<section class="page-head wrap"><h1>Запрос коммерческого предложения</h1><p class="lead">Заполните форму — укажите оборудование, количество и параметры объекта. Поля со звёздочкой обязательны.</p></section>
-<div class="wrap two-col two-col-form section-tight"><div class="req-aside"><h2>Что указать в запросе</h2><ul class="ticks"><li>Направление и тип объекта (репродуктор, доращивание, откорм, птичник, коровник)</li><li>Поголовье и количество станков / секций</li><li>Размеры помещений и тип вентиляции</li><li>Перечень моделей из каталога, если уже выбраны</li><li>Регион и желаемые сроки поставки</li></ul><div data-request-product></div></div>{request_form()}</div>'''
+<div class="wrap two-col two-col-form section-tight"><div class="req-aside"><h2>Что указать в запросе</h2><ul class="ticks"><li>Направление и тип объекта (репродуктор, доращивание, откорм, птичник, коровник)</li><li>Поголовье и количество станков / секций</li><li>Размеры помещений и тип вентиляции</li><li>Перечень моделей из каталога, если уже выбраны</li><li>Регион и желаемые сроки поставки</li><li>Нужен ли монтаж — выполняем по договорённости</li></ul><div data-request-product></div></div>{request_form()}</div>'''
     write_page("/request/", "Запрос коммерческого предложения", "Запросите коммерческое предложение на оборудование для свиноводства, птицеводства и КРС.",
                body, crumbs=[("Главная", "/"), ("Запрос КП", "/request/")])
 
@@ -854,6 +868,110 @@ def build_static_pages():
     write_page("/404.html", "Страница не найдена", "Страница не найдена.", body, noindex=True)
 
 
+def build_manager_page():
+    body = """<section class="wrap mgr" data-manager>
+  <div data-view="login" hidden>
+    <form class="mgr-login" data-login-form>
+      <h1>Кабинет менеджера</h1>
+      <label><span>Пароль</span><input type="password" name="password" required autocomplete="current-password"></label>
+      <button class="btn btn-primary" type="submit">Войти</button>
+      <p class="rform-msg err" data-login-msg role="alert"></p>
+    </form>
+  </div>
+  <div data-view="app" hidden>
+    <div class="mgr-head">
+      <h1>Кабинет менеджера</h1>
+      <div class="mgr-tabs" role="tablist">
+        <button type="button" role="tab" data-tab="requests">Заявки <span data-req-count></span></button>
+        <button type="button" role="tab" data-tab="products">Оборудование</button>
+        <button type="button" role="tab" data-tab="settings">Подключения</button>
+      </div>
+      <button type="button" class="btn btn-ghost btn-sm" data-logout>Выйти</button>
+    </div>
+
+    <div data-panel="requests" hidden>
+      <div class="filters">
+        <label class="fl"><span>Статус</span><select data-req-filter><option value="">Все</option></select></label>
+        <label class="fl fl-grow"><span>Поиск</span><input type="search" data-req-search placeholder="Имя, телефон, e-mail, компания, оборудование"></label>
+        <a class="btn btn-ghost btn-sm" href="/api/manager/requests.csv" download>Выгрузить в Excel (CSV)</a>
+      </div>
+      <div data-requests></div>
+    </div>
+
+    <div data-panel="products" hidden>
+      <div class="filters">
+        <label class="fl fl-grow"><span>Поиск</span><input type="search" data-prod-search placeholder="Название, модель, код"></label>
+        <span class="fl-count" data-prod-count></span>
+        <button type="button" class="btn btn-primary" data-new-product>+ Добавить оборудование</button>
+      </div>
+      <p class="note">Изделия, входящие в серии (пластиковые полы, ПВХ-панели, ниппельные поилки), правятся в файлах данных — здесь они только для справки.</p>
+      <div data-products></div>
+    </div>
+
+    <div data-panel="editor" hidden>
+      <form class="mgr-editor" data-editor novalidate>
+        <h2 data-editor-title>Новое оборудование</h2>
+        <fieldset class="mgr-sec"><legend>Основное</legend>
+          <div class="rform-grid">
+            <label class="span2"><span>Название *</span><input name="name" required maxlength="300"></label>
+            <label><span>Модель / артикул</span><input name="model" maxlength="300"></label>
+            <label><span>Код для адреса страницы *</span><input name="id" required pattern="[a-z0-9][a-z0-9-]+" maxlength="80"></label>
+            <label class="span2"><span>Краткое описание (для карточки в списке)</span><input name="summary" maxlength="400"></label>
+            <label class="span2"><span>Описание</span><textarea name="description" rows="4"></textarea></label>
+            <label class="span2"><span>Назначение</span><textarea name="purpose" rows="2"></textarea></label>
+            <label class="span2"><span>Исполнения (текстом)</span><textarea name="variants" rows="2"></textarea></label>
+            <label class="span2"><span>Изготовитель (если указывается)</span><input name="maker" maxlength="300"></label>
+          </div>
+        </fieldset>
+        <fieldset class="mgr-sec"><legend>Разделы каталога *</legend><div class="mgr-cats" data-cats></div></fieldset>
+        <fieldset class="mgr-sec"><legend>Фотографии</legend>
+          <div class="mgr-images" data-images></div>
+          <label class="btn btn-ghost btn-sm mgr-file">Добавить фото<input type="file" name="photos" accept="image/*" multiple></label>
+          <p class="muted">Первое фото — главное. Фото автоматически уменьшаются до 1400 px.</p>
+        </fieldset>
+        <fieldset class="mgr-sec"><legend>Характеристики</legend>
+          <div data-params></div><button type="button" class="btn btn-ghost btn-sm" data-add-param>+ параметр</button>
+          <h3>Таблицы (модельный ряд, исполнения)</h3>
+          <div data-tables></div><button type="button" class="btn btn-ghost btn-sm" data-add-table>+ таблица</button>
+        </fieldset>
+        <fieldset class="mgr-sec"><legend>Особенности и комплектация</legend>
+          <div class="rform-grid">
+            <label><span>Особенности — по одной на строку</span><textarea name="features" rows="5"></textarea></label>
+            <label><span>Комплектация — по одной позиции на строку</span><textarea name="kit" rows="5"></textarea></label>
+          </div>
+        </fieldset>
+        <fieldset class="mgr-sec"><legend>Фильтры в каталоге</legend>
+          <div data-facets></div><button type="button" class="btn btn-ghost btn-sm" data-add-facet>+ фильтр</button>
+          <div class="rform-grid mgr-air">
+            <label><span>Производительность от, м³/ч (для вентиляции)</span><input name="air_min" inputmode="numeric" pattern="[0-9]*"></label>
+            <label><span>до, м³/ч</span><input name="air_max" inputmode="numeric" pattern="[0-9]*"></label>
+          </div>
+        </fieldset>
+        <fieldset class="mgr-sec"><legend>Документация и связи</legend>
+          <div data-docs></div><button type="button" class="btn btn-ghost btn-sm" data-add-doc>+ документ</button>
+          <label class="mgr-rel"><span>Сопутствующие изделия — коды через запятую</span><input name="related" list="mgr-related"></label>
+          <datalist id="mgr-related" data-related-list></datalist>
+          <label class="mgr-rel"><span>Чего не хватает (видно только менеджеру) — по строке</span><textarea name="missing" rows="3"></textarea></label>
+        </fieldset>
+        <div class="rform-actions">
+          <button class="btn btn-primary" type="submit">Сохранить</button>
+          <button class="btn btn-ghost" type="button" data-editor-cancel>Отмена</button>
+          <p class="rform-msg err" data-editor-msg role="alert"></p>
+        </div>
+      </form>
+    </div>
+
+    <div data-panel="settings" hidden>
+      <div class="tbl-wrap"><table class="tbl tbl-kv"><tbody data-status></tbody></table></div>
+      <p class="note">Подключения настраиваются в Layero: Project → Environment Variables. Инструкция — в README репозитория.</p>
+    </div>
+  </div>
+  <div class="mgr-toast" data-toast role="status" hidden></div>
+</section>
+<script src="/assets/js/manager.js" defer></script>"""
+    write_page("/manager/", "Кабинет менеджера", "Кабинет менеджера WITTE.", body, noindex=True)
+
+
 def build_search_index():
     idx = []
     for pid, p in products.items():
@@ -874,11 +992,11 @@ def build_seo_files():
     with open(os.path.join(SITE, "sitemap.xml"), "w", encoding="utf-8") as f:
         f.write(f'<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{urls}</urlset>\n')
     with open(os.path.join(SITE, "robots.txt"), "w", encoding="utf-8") as f:
-        f.write(f"User-agent: *\nAllow: /\nDisallow: /search/\nDisallow: /api/\n\nSitemap: {base}/sitemap.xml\n")
+        f.write(f"User-agent: *\nAllow: /\nDisallow: /search/\nDisallow: /api/\nDisallow: /manager/\n\nSitemap: {base}/sitemap.xml\n")
 
 
 def clean_generated():
-    for name in ["catalog", "about", "documentation", "contacts", "request", "privacy", "search"]:
+    for name in ["catalog", "about", "documentation", "contacts", "request", "privacy", "search", "manager"]:
         shutil.rmtree(os.path.join(SITE, name), ignore_errors=True)
 
 
@@ -888,6 +1006,7 @@ def main():
     build_catalog()
     build_products()
     build_static_pages()
+    build_manager_page()
     build_search_index()
     build_seo_files()
     print(f"Товаров: {len(products)}; страниц: {len(ALL_PAGES)}")

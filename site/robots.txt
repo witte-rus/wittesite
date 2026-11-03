@@ -2,5 +2,6 @@ User-agent: *
 Allow: /
 Disallow: /search/
 Disallow: /api/
+Disallow: /manager/
 
 Sitemap: https://example.ru/sitemap.xml

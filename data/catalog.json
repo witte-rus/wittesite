@@ -323,7 +323,14 @@
             "Наличие системы управления микроклиматом"
           ],
           "image": "photo-chicks",
-          "subcategories": []
+          "subcategories": [
+            {
+              "slug": "lighting-equipment",
+              "name": "Оборудование для освещения",
+              "description": "Светильники и системы управления световым режимом для птичников.",
+              "image": "photo-chicks"
+            }
+          ]
         },
         {
           "slug": "housing",
@@ -337,7 +344,14 @@
             "Требования к автоматизации кормления и поения"
           ],
           "image": "photo-chicks",
-          "subcategories": []
+          "subcategories": [
+            {
+              "slug": "housing-equipment",
+              "name": "Оборудование для содержания птицы",
+              "description": "Клеточное оборудование, ограждения и оснащение птичников.",
+              "image": "photo-chicks"
+            }
+          ]
         }
       ]
     },
@@ -395,7 +409,14 @@
             "Ширина кормового и навозного проходов"
           ],
           "image": "photo-cows",
-          "subcategories": []
+          "subcategories": [
+            {
+              "slug": "stall-equipment",
+              "name": "Стойловое оборудование",
+              "description": "Боксы для отдыха, разделители, кормовые решётки и ограждения.",
+              "image": "photo-cows"
+            }
+          ]
         },
         {
           "slug": "hoof-mats",
@@ -409,7 +430,14 @@
             "Тип основания пола"
           ],
           "image": "photo-cows",
-          "subcategories": []
+          "subcategories": [
+            {
+              "slug": "mats",
+              "name": "Коврики и маты",
+              "description": "Резиновые коврики и маты для боксов, проходов и доильных залов.",
+              "image": "photo-cows"
+            }
+          ]
         }
       ]
     }
