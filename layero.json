@@ -1,3 +1,15 @@
 {
-  "outputDirectory": "site"
+  "frontend": {
+    "root": "",
+    "framework": "generic",
+    "install": "pip3 install pillow==11.2.1 || true",
+    "build": "python3 tools/build.py",
+    "output": "site"
+  },
+  "backend": {
+    "root": "",
+    "framework": "fastapi",
+    "start": "uvicorn backend.app:app --host 0.0.0.0 --port $PORT"
+  },
+  "apiPrefix": "/api"
 }
