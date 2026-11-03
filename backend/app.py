@@ -528,14 +528,21 @@ async def create_request(request: Request, bg: BackgroundTasks):
             saved = True
         except Exception:
             log.exception("Не удалось сохранить заявку в базу")
-    if not saved and not (SMTP_USER and SMTP_PASSWORD):
-        raise HTTPException(503, "Приём заявок временно недоступен. Напишите нам на " + MAIL_TO)
-    if saved:
+    durable = saved and store is not None and store.pg  # заявка надёжно сохранена в PostgreSQL
+    smtp_ready = bool(SMTP_USER and SMTP_PASSWORD)
+    if durable and smtp_ready:
         bg.add_task(mail_and_mark, rec)
-    else:
+    elif smtp_ready:
+        # без постоянной базы заявка не должна теряться: подтверждаем клиенту только после отправки письма
         status = send_mail(rec)
+        if saved:
+            store.set_mailed(rec["id"], status)
         if status != "sent":
-            raise HTTPException(503, "Не удалось отправить заявку. Напишите нам на " + MAIL_TO)
+            raise HTTPException(503, "Не удалось отправить заявку. Позвоните нам или напишите на " + MAIL_TO)
+    elif not durable and not DEV_STATIC:
+        raise HTTPException(503, "Приём заявок временно недоступен. Позвоните нам или напишите на " + MAIL_TO)
+    elif saved:
+        store.set_mailed(rec["id"], "smtp-not-configured")
     log.info("Заявка %s: %s %s", rec["id"], rec["name"], rec["phone"])
     return {"id": rec["id"]}
 
