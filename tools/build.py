@@ -224,7 +224,7 @@ def mobile_nav():
             cats.append(f'<details><summary>{E(c["name"])}</summary><ul><li><a href="{url_of(d["slug"] + "/" + c["slug"])}">Все: {E(c["name"].lower())}</a></li>{subs}</ul></details>')
         dirs.append(f'<details class="mn-dir"><summary>{E(d["name"])}</summary><div><a class="mn-all" href="{url_of(d["slug"])}">Всё направление</a>{"".join(cats)}</div></details>')
     return f'''<div class="mnav" id="mnav" hidden>
-  <div class="mnav-head"><span class="logo-txt">Witte<span>-rus</span></span><button class="icon-btn" data-close-mnav aria-label="Закрыть меню">{ICONS["close"]}</button></div>
+  <div class="mnav-head"><span class="logo"><img class="logo-mark" src="/assets/img/brand/mark-blue.svg" alt="" width="64" height="54"><span class="logo-txt">WITTE</span></span><button class="icon-btn" data-close-mnav aria-label="Закрыть меню">{ICONS["close"]}</button></div>
   <form class="mnav-search" action="/search/" role="search"><input type="search" name="q" placeholder="Поиск по каталогу" aria-label="Поиск по каталогу"><button aria-label="Найти">{ICONS["search"]}</button></form>
   <nav aria-label="Мобильное меню">
     <a class="mn-link" href="/">Главная</a>
@@ -247,7 +247,7 @@ def footer():
     return f'''<footer class="footer">
   <div class="wrap footer-grid">
     <div>
-      <div class="logo-txt logo-light">Witte<span>-rus</span></div>
+      <div class="logo logo-light"><img class="logo-mark" src="/assets/img/brand/mark-white.svg" alt="" width="64" height="54"><span class="logo-text"><span class="logo-txt">WITTE</span><span class="logo-sub">оборудование для ферм</span></span></div>
       <p class="muted-light">Оборудование для свиноводства, птицеводства и КРС: кормление, поение, микроклимат, обогрев, полы и системы содержания.</p>
     </div>
     <div><h3>Каталог</h3><ul>{dirs}<li><a href="/search/">Поиск по каталогу</a></li></ul></div>
@@ -323,8 +323,11 @@ def write_page(path, title, description, body, crumbs=None, active="", ld=None, 
 <meta property="og:description" content="{E(description)}">
 <meta property="og:url" content="{base}{path}">
 {og_img}
-<meta name="theme-color" content="#0b1a2e">
+<meta name="theme-color" content="#0B49B0">
 <link rel="icon" href="/assets/img/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=Unbounded:wght@600;800&amp;display=swap">
 <link rel="stylesheet" href="/assets/css/site.css">
 {ld_html}
 </head>
@@ -332,7 +335,7 @@ def write_page(path, title, description, body, crumbs=None, active="", ld=None, 
 <a class="skip" href="#main">Перейти к содержанию</a>
 <header class="header">
   <div class="wrap header-in">
-    <a class="logo" href="/" aria-label="Witte-rus — на главную"><span class="logo-txt">Witte<span>-rus</span></span><span class="logo-sub">оборудование для животноводства</span></a>
+    <a class="logo" href="/" aria-label="WITTE — на главную"><img class="logo-mark" src="/assets/img/brand/mark-blue.svg" alt="" width="64" height="54"><span class="logo-text"><span class="logo-txt">WITTE</span><span class="logo-sub">оборудование для ферм</span></span></a>
     <nav class="nav" aria-label="Основное меню">
       {nav("/", "Главная", "home")}
       <div class="nav-cat">
