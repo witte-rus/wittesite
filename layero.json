@@ -2,8 +2,7 @@
   "frontend": {
     "root": "",
     "framework": "generic",
-    "install": "pip3 install pillow==11.2.1 || true",
-    "build": "python3 tools/build.py",
+    "build": "echo 'site/ собран заранее (tools/build.py); пересборку после правок в кабинете выполняет backend'",
     "output": "site"
   },
   "backend": {

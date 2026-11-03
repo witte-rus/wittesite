@@ -294,7 +294,75 @@ class GitHubRepo:
         d = self._api("GET", f"/contents/{urllib.parse.quote(path)}?ref={GITHUB_BRANCH}")
         return sorted(x["name"] for x in d) if isinstance(d, list) else []
 
+    def _rebuild(self, files: Dict[str, Optional[bytes]]) -> Dict[str, Optional[bytes]]:
+        """Пересобирает страницы в рабочей копии контейнера и добавляет изменённые файлы site/ в коммит.
+
+        На Layero сборщик статики работает без Python, поэтому готовые страницы собирает сервер:
+        данные берутся из GitHub (последняя версия), сайт генерируется tools/build.py.
+        """
+        def put(path: str, data: Optional[bytes]):
+            p = os.path.join(ROOT, path)
+            if data is None:
+                if os.path.exists(p):
+                    os.remove(p)
+                return
+            os.makedirs(os.path.dirname(p), exist_ok=True)
+            with open(p, "wb") as f:
+                f.write(data)
+
+        # 1. актуальные данные из репозитория + новые изменения
+        remote_products = [n for n in self.list_dir(PRODUCTS_DIR) if n.endswith(".json")]
+        for n in os.listdir(os.path.join(ROOT, PRODUCTS_DIR)):
+            if n.endswith(".json") and n not in remote_products:
+                put(f"{PRODUCTS_DIR}/{n}", None)
+        for path in ["data/catalog.json", "data/documents.json", "data/company.json"] + [f"{PRODUCTS_DIR}/{n}" for n in remote_products]:
+            if path not in files:
+                raw = self.read(path)
+                if raw is not None:
+                    put(path, raw)
+        for path, data in files.items():
+            put(path, data)
+
+        def snapshot() -> Dict[str, str]:
+            out = {}
+            for base, dirs, names in os.walk(os.path.join(ROOT, "site")):
+                rel = os.path.relpath(base, ROOT)
+                if rel.startswith(os.path.join("site", "docs")) or rel.startswith(os.path.join("site", "assets", "img")):
+                    continue
+                for n in names:
+                    if n.endswith((".html", ".xml", ".txt", ".json")):
+                        p = os.path.join(base, n)
+                        out[os.path.relpath(p, ROOT).replace(os.sep, "/")] = hashlib.sha1(open(p, "rb").read()).hexdigest()
+            return out
+
+        def build() -> str:
+            r = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "build.py")], capture_output=True, text=True, timeout=300, cwd=ROOT)
+            if r.returncode != 0:
+                raise HTTPException(500, "Сборка сайта завершилась с ошибкой: " + (r.stdout + r.stderr)[-800:])
+            return r.stdout
+
+        before = snapshot()
+        out = build()
+        # 2. фото, добавленные после последнего деплоя контейнера, докачиваем из репозитория
+        missing = re.findall(r"Нет изображения: ([a-z0-9-]+)", out)
+        if missing:
+            for name in set(missing):
+                raw = self.read(f"{IMG_DIR}/{name}.jpg")
+                if raw:
+                    put(f"{IMG_DIR}/{name}.jpg", raw)
+            build()
+        after = snapshot()
+        result = dict(files)
+        for path, h in after.items():
+            if before.get(path) != h:
+                result[path] = open(os.path.join(ROOT, path), "rb").read()
+        for path in before:
+            if path not in after:
+                result[path] = None
+        return result
+
     def commit(self, files: Dict[str, Optional[bytes]], message: str) -> str:
+        files = self._rebuild(files)
         ref = self._api("GET", f"/git/ref/heads/{GITHUB_BRANCH}")
         head = ref["object"]["sha"]
         base_tree = self._api("GET", f"/git/commits/{head}")["tree"]["sha"]
@@ -302,9 +370,15 @@ class GitHubRepo:
         for path, data in files.items():
             if data is None:
                 tree.append({"path": path, "mode": "100644", "type": "blob", "sha": None})
-            else:
-                blob = self._api("POST", "/git/blobs", {"content": base64.b64encode(data).decode(), "encoding": "base64"})
-                tree.append({"path": path, "mode": "100644", "type": "blob", "sha": blob["sha"]})
+                continue
+            if path.endswith((".html", ".json", ".xml", ".txt", ".md")):
+                try:  # текстовые файлы — прямо в дереве, одним запросом
+                    tree.append({"path": path, "mode": "100644", "type": "blob", "content": data.decode("utf-8")})
+                    continue
+                except UnicodeDecodeError:
+                    pass
+            blob = self._api("POST", "/git/blobs", {"content": base64.b64encode(data).decode(), "encoding": "base64"})
+            tree.append({"path": path, "mode": "100644", "type": "blob", "sha": blob["sha"]})
         new_tree = self._api("POST", "/git/trees", {"base_tree": base_tree, "tree": tree})
         commit = self._api("POST", "/git/commits", {"message": message, "tree": new_tree["sha"], "parents": [head]})
         self._api("PATCH", f"/git/refs/heads/{GITHUB_BRANCH}", {"sha": commit["sha"]})
