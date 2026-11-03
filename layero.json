@@ -2,6 +2,7 @@
   "frontend": {
     "root": "",
     "framework": "generic",
+    "install": "echo 'зависимости не нужны'",
     "build": "echo 'site/ собран заранее (tools/build.py); пересборку после правок в кабинете выполняет backend'",
     "output": "site"
   },
